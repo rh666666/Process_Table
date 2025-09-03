@@ -25,6 +25,19 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         if instance.status == "approved" and request.data.get("status") == "draft":
             raise ValidationError({"error": "已审核的工单不能变更为草稿状态。"})
+        # 如果工单状态改为已排产，则自动拆分工单
+        if request.data.get("status") == "scheduled":
+            self.split_work_order(instance)
+        
+        #已经排产的工单，只能修改待处理和未报工的任务
+        if instance.status == "scheduled":
+            tasks = instance.tasks.filter(status__in=["pending", "unreported"])
+            allowed_process_ids = [task.process.id for task in tasks]
+            if "processes" in request.data:
+                for process_id in request.data["processes"]:
+                    if process_id not in allowed_process_ids:
+                        return Response({"error": "已排产的工单只能修改待处理和未报工的工序。"}, status=status.HTTP_400_BAD_REQUEST)
+
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
@@ -33,29 +46,17 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
             return Response({"error": "已排产的工单不可删除。"}, status=status.HTTP_400_BAD_REQUEST)
         return super().destroy(request, *args, **kwargs)
 
+    def split_work_order(self, work_order):
+        # 拆分工单的逻辑
+        try:
+            processes = Process.objects.all()
+            for process in processes:
+                Task.objects.create(work_order=work_order, process=process)
+            logger.info(f"工单 {work_order.id} 拆分成功。")
+        except Exception as e:
+            logger.error(f"工单 {work_order.id} 拆分失败: {str(e)}")
+            raise ValidationError({"error": "工单拆分失败，请联系管理员。"})
+
 class TaskViewSet(viewsets.ModelViewSet):
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
-
-class WorkOrderSplitView(APIView):
-    def post(self, request, *args, **kwargs):
-        work_order_id = request.data.get("work_order_id")
-        process_ids = request.data.get("processes", [])
-
-        try:
-            work_order = WorkOrder.objects.get(id=work_order_id)
-        except WorkOrder.DoesNotExist:
-            return Response({"error": "工单不存在。"}, status=status.HTTP_404_NOT_FOUND)
-
-        if work_order.status != "approved":
-            return Response({"error": "只有已审核的工单可以拆分。"}, status=status.HTTP_400_BAD_REQUEST)
-
-        processes = Process.objects.filter(id__in=process_ids)
-        if not processes.exists():
-            return Response({"error": "无效的工序 ID。"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 拆分逻辑：为每个工序创建一个工序工单
-        for process in processes:
-            Task.objects.create(work_order=work_order, process=process)
-
-        return Response({"message": "工单拆分成功。"}, status=status.HTTP_200_OK)

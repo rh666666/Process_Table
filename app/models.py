@@ -17,8 +17,16 @@ class WorkOrder(models.Model):
     ]
     name = models.CharField(max_length=100, verbose_name="工单名称")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', verbose_name="状态")
+    # 一个工单对应多个工序
+    processes = models.ManyToManyField(Process, related_name="work_orders", verbose_name="关联工序")
 
 class Task(models.Model):
+    STATUS_CHOICES = [
+        ('pending', '待处理'),
+        ('unreported', '未报工'),
+        ('in_progress', '进行中'),
+        ('completed', '已完成'),
+    ]
     work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name="tasks", verbose_name="关联工单")
     process = models.ForeignKey(Process, on_delete=models.CASCADE, verbose_name="关联工序")
-    status = models.CharField(max_length=20, default='pending', verbose_name="任务状态")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name="任务状态")
