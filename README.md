@@ -1,7 +1,7 @@
 # 工序表管理系统api接口文档
 
 ## 项目简介
-这是一个基于Django和Django REST Framework开发的工序表管理系统后端API，提供完整的工艺路线、工单和任务管理功能，适用于制造业生产流程管理场景。
+这是一个基于Django和Django REST Framework开发的工序表管理系统后端API，提供完整的工艺路线、工单和任务管理功能，适用于制造业生产流程管理场景。本项目是作者的第一个django练手项目。
 
 ## 技术栈
 - Django 5.2.5
@@ -201,7 +201,7 @@ docker compose logs -f
 
 - 进入容器内部：
 ```bash
-docker exec -it process_table-web /bin/bash
+docker exec -it <container_id> /bin/bash
 ```
 
 ## 测试
