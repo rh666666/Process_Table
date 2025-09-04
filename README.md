@@ -190,19 +190,19 @@ docker ps
 ### 常用Docker命令
 
 - 停止容器：
-  ```bash
+```bash
 docker compose down
-  ```
+```
 
 - 查看容器日志：
-  ```bash
+```bash
 docker compose logs -f
-  ```
+```
 
 - 进入容器内部：
-  ```bash
-docker exec -it process_table-web-1 /bin/bash
-  ```
+```bash
+docker exec -it process_table-web /bin/bash
+```
 
 ## 测试
 
