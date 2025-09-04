@@ -8,6 +8,8 @@ services:
     environment:
       - DEBUG=False
       - ALLOWED_HOSTS=*
+      # 你可以设置一个 secret key
+      # - SECRET_KEY=
       # 如果使用PostgreSQL，请取消下面几行的注释并注释掉SQLite相关配置
       # - DATABASE_ENGINE=django.db.backends.postgresql
       # - DATABASE_NAME=${POSTGRES_DB}

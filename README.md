@@ -1,4 +1,4 @@
-# 工序表管理系统api接口文档
+# 工序表管理系统api接口
 
 ## 项目简介
 这是一个基于Django和Django REST Framework开发的工序表管理系统后端API，提供完整的工艺路线、工单和任务管理功能，适用于制造业生产流程管理场景。本项目是作者的第一个django练手项目。
@@ -152,26 +152,11 @@ RouteProcess (工艺路线工序关系) <-- 一对多 -- Task (任务)
 - Docker 已安装
 - Docker Compose 已安装
 
-### 环境变量配置
-
-项目使用`.env`文件管理环境变量，确保项目根目录下有`.env`文件，包含以下内容：
-
-```env
-# Django应用密钥
-SECRET_KEY=django-insecure-kzp6qo9*ts3p8%ylck*oxbq)c=c4jsg&uh$-3*2kfe@%$-4cx8
-
-# 可选：PostgreSQL数据库配置（如果使用PostgreSQL）
-# POSTGRES_DB=process_table
-# POSTGRES_USER=postgres
-# POSTGRES_PASSWORD=postgres
-```
-
 ### 部署步骤
 
 1. 确保项目根目录下有以下Docker相关文件：
    - `Dockerfile`
    - `docker-compose.yml`
-   - `.env`
 
 2. 构建并启动容器：
 
@@ -201,7 +186,7 @@ docker compose logs -f
 
 - 进入容器内部：
 ```bash
-docker exec -it <container_id> /bin/bash
+docker exec -it process_table_web_1 /bin/bash
 ```
 
 ## 测试

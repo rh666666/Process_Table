@@ -7,9 +7,6 @@ if [ ! -f "db.sqlite3" ]; then
     # 运行数据库迁移
     python manage.py makemigrations app
     python manage.py migrate
-
-    # 收集静态文件，建议使用nginx反向代理
-    python manage.py collectstatic --no-input
 fi
 
 # 启动应用
