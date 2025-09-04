@@ -8,7 +8,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DEBUG=True
+      - DEBUG=False
       - ALLOWED_HOSTS=*
       # 如果使用PostgreSQL，请取消下面几行的注释并注释掉SQLite相关配置
       # - DATABASE_ENGINE=django.db.backends.postgresql
