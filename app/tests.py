@@ -2,6 +2,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework import status
 from .models import WorkOrder, Task, Process, Route, RouteProcess
+from .views import WorkOrderViewSet
 
 class WorkOrderAPITestCase(TestCase):
     def setUp(self):
@@ -235,6 +236,64 @@ class WorkOrderSplitTestCase(TestCase):
             status="approved",  # 假设只有已审核的工单可以拆分
             route=self.route
         )
+        
+    def test_split_work_order_with_exception(self):
+        """测试拆分工单过程中出现异常的处理逻辑"""
+        # 使用mock.patch来正确模拟split_work_order方法
+        import unittest.mock as mock
+        
+        # 使用patch来临时替换split_work_order方法
+        with mock.patch('app.views.WorkOrderViewSet.split_work_order') as mock_split:
+            # 配置mock方法抛出异常
+            mock_split.side_effect = Exception("模拟拆分工单失败")
+            
+            # 验证当尝试将工单状态改为已排产时，会触发异常
+            with self.assertRaises(Exception) as context:
+                data = {"status": "scheduled"}
+                self.client.patch(f"/api/workorders/{self.work_order.id}/", data, format="json")
+            
+            # 验证异常消息
+            self.assertEqual(str(context.exception), "模拟拆分工单失败")
+            
+            # 验证mock方法被调用
+            mock_split.assert_called_once()
+            
+    def test_manual_split_work_order_with_exception(self):
+        """测试通过WorkOrderSplitView手动拆分工单时的异常处理"""
+        # 由于在实际应用中，我们不能确定WorkOrderSplitView的URL是否已配置
+        # 我们可以直接测试WorkOrderSplitView类的实例方法
+        
+        # 导入WorkOrderSplitView
+        from .views import WorkOrderSplitView
+        from django.http import HttpRequest
+        from django.test.client import RequestFactory
+        
+        # 创建请求工厂
+        factory = RequestFactory()
+        request = factory.post(f'/workorders/{self.work_order.id}/split/')
+        
+        # 使用mock.patch来模拟拆分工单过程中的异常
+        import unittest.mock as mock
+        
+        # 使用patch来临时替换split_work_order方法
+        with mock.patch('app.views.WorkOrderViewSet.split_work_order') as mock_split:
+            # 配置mock方法抛出异常
+            mock_split.side_effect = Exception("模拟手动拆分工单失败")
+            
+            # 创建WorkOrderSplitView实例
+            view = WorkOrderSplitView.as_view()
+            
+            # 直接调用视图方法进行测试
+            response = view(request, pk=self.work_order.id)
+            
+            # 验证返回的状态码为500
+            self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            # 验证返回的错误消息
+            self.assertEqual(response.data, {"error": "拆分工单失败，请联系管理员。"})
+            
+            # 验证mock方法被调用
+            mock_split.assert_called_once()
 
 class TaskStatusChangeTestCase(TestCase):
     def setUp(self):
