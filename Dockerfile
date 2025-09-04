@@ -24,12 +24,11 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 # 复制整个项目代码
 COPY . .
 
-# 运行数据库迁移
-RUN python manage.py makemigrations
-RUN python manage.py migrate
-
 # 暴露端口
 EXPOSE 8000
 
+# 启动脚本
+RUN chmod +x start.sh
+
 # 使用uvicorn作为ASGI服务器运行应用
-CMD ["uvicorn", "Process_Table.asgi:application", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./start.sh"]

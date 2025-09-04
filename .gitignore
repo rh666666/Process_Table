@@ -11,6 +11,9 @@
 # 数据迁移文件
 **/migrations/
 
+# 静态文件
+staticfiles/
+
 # 虚拟环境
 .env
 .env.*
