@@ -25,17 +25,11 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY . .
 
 # 运行数据库迁移
+RUN python manage.py makemigrations
 RUN python manage.py migrate
-
-# 收集静态文件
-RUN python manage.py collectstatic --noinput
 
 # 暴露端口
 EXPOSE 8000
 
-# 定义环境变量以支持生产环境配置
-ENV DEBUG=False
-ENV ALLOWED_HOSTS=*
-
-# 使用gunicorn作为WSGI服务器运行应用
-CMD ["gunicorn", "Process_Table.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+# 使用uvicorn作为ASGI服务器运行应用
+CMD ["uvicorn", "Process_Table.asgi:application", "--host", "0.0.0.0", "--port", "8000"]
