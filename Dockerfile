@@ -9,8 +9,8 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # 更换apt源为阿里源
-RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list \
-    && sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
+RUN sed -i "s@deb http://deb.debian.org/debian@deb http://mirrors.aliyun.com/debian@g" /etc/apt/sources.list \
+    && sed -i "s@deb http://security.debian.org/debian-security@deb http://mirrors.aliyun.com/debian-security@g" /etc/apt/sources.list
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
