@@ -8,6 +8,10 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# 更换apt源为阿里源
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list \
+    && sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
+
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
@@ -17,6 +21,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # 复制requirements.txt文件
 COPY requirements.txt .
+
+# 更换pip源为阿里源
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
+    && pip config set global.trusted-host mirrors.aliyun.com
 
 # 安装Python依赖
 RUN pip install --upgrade pip && pip install -r requirements.txt
