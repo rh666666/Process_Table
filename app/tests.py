@@ -38,8 +38,8 @@ class WorkOrderAPITestCase(TestCase):
         RouteProcess.objects.create(route=route, process=process_a, order=1)
         RouteProcess.objects.create(route=route, process=process_c, order=3)
         
-        # 验证工序按order字段排序
-        ordered_processes = list(route.processes.all())
+        # 验证工序按order字段排序 - 通过RouteProcess中间表正确获取排序
+        ordered_processes = [rp.process for rp in route.routeprocess_set.all().order_by('order')]
         self.assertEqual(ordered_processes[0], process_a)  # order=1
         self.assertEqual(ordered_processes[1], process_b)  # order=2
         self.assertEqual(ordered_processes[2], process_c)  # order=3
