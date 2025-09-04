@@ -81,7 +81,7 @@
 
 1. 克隆项目代码
 ```bash
-git clone <repository-url>
+git clone https://github.com/rh666666/Process_Table.git
 cd Process_Table
 ```
 
