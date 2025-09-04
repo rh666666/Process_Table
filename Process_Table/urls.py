@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from app.views import ProcessViewSet, RouteViewSet, WorkOrderViewSet, TaskViewSet
+from app.views import ProcessViewSet, RouteViewSet, WorkOrderViewSet, TaskViewSet, WorkOrderSplitView
 
 router = DefaultRouter()
 router.register(r'processes', ProcessViewSet)
@@ -28,4 +28,6 @@ router.register(r'tasks', TaskViewSet)
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),  # 确保 API 路由已包含
+    # 新增拆分工单的API路由
+    path('api/workorders/<int:pk>/split/', WorkOrderSplitView.as_view(), name='workorder_split'),
 ]

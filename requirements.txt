@@ -1,0 +1,10 @@
+asgiref==3.9.1
+Django==5.2.5
+django-stubs-ext==5.2.2
+djangorestframework==3.16.1
+gunicorn==23.0.0
+packaging==25.0
+sqlparse==0.5.3
+types-PyYAML==6.0.12.20250822
+typing_extensions==4.15.0
+tzdata==2025.2

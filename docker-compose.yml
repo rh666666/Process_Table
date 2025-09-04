@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    command: gunicorn Process_Table.wsgi:application --bind 0.0.0.0:8000 --workers 3
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - ALLOWED_HOSTS=*
+      - SECRET_KEY=${SECRET_KEY}
+      # 如果使用PostgreSQL，请取消下面几行的注释并注释掉SQLite相关配置
+      # - DATABASE_ENGINE=django.db.backends.postgresql
+      # - DATABASE_NAME=${POSTGRES_DB}
+      # - DATABASE_USER=${POSTGRES_USER}
+      # - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      # - DATABASE_HOST=db
+      # - DATABASE_PORT=5432
+    # depends_on:
+    #   - db
+
+  # db:
+  #   image: postgres:13
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data/
+  #   environment:
+  #     - POSTGRES_DB=${POSTGRES_DB}
+  #     - POSTGRES_USER=${POSTGRES_USER}
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+# volumes:
+#   postgres_data:
