@@ -72,14 +72,13 @@ class WorkOrderSerializer(serializers.ModelSerializer):
         # 工单状态变更验证
         instance = self.instance
         if instance:
-            # 已经提交未审核的工单，需要撤销提交后修改
-            if instance.status == 'submitted' and value == 'draft':
-                # 允许从已提交状态变更为草稿状态（撤销提交）
-                pass
+            # 草稿状态下，所有字段都可以修改，但状态只能改为已提交
+            if instance.status == 'draft' and value != 'submitted':
+                raise serializers.ValidationError("请先提交工单。")
             # 已经审核的工单，需要反审核后修改
-            elif instance.status == 'approved' and value == 'draft':
-                raise serializers.ValidationError("已审核的工单不能直接变更为草稿状态，请先反审核。")
-            # 已经审核且已经排产的工单，不可以进行工单的删除操作（在view中处理）
+            if instance.status == 'approved' and value == 'draft':
+                raise serializers.ValidationError("请先反审核。")
+            
         return value
     
     class Meta:
@@ -101,7 +100,7 @@ class TaskSerializer(serializers.ModelSerializer):
         instance = self.instance
         work_order = data.get('work_order') or (instance.work_order if instance else None)
         
-        if work_order and work_order.status == 'scheduled':
+        if work_order and work_order.is_scheduled:
             # 对于已排产的工单，不允许修改已完成或进行中的任务
             if instance and instance.status in ['in_progress', 'completed']:
                 raise serializers.ValidationError("已排产工单的进行中或已完成任务不允许修改。")

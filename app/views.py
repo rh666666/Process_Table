@@ -25,46 +25,36 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         new_status = request.data.get("status")
         
-        # 约束状态流转
-        # 1. 已审核的工单不能直接变更为草稿状态
-        if instance.status == "approved" and new_status == "draft":
-            raise ValidationError({"error": "已审核的工单不能变更为草稿状态。"})
-            
-        # 2. 只有草稿、已提交和已审核状态可以被修改
-        # 但已排产状态的工单不允许修改基本信息（除了状态本身和工艺路线）
-        if instance.status == "scheduled" and not new_status:
-            # 检查请求中是否只包含route字段
-            if not all(key == "route" for key in request.data.keys()):
-                raise ValidationError({"error": "已排产的工单不允许修改基本信息。"})
-            
-        # 3. 已排产状态的工单不允许通过修改状态来回退
-        if instance.status == "scheduled" and new_status and new_status != "scheduled":
-            raise ValidationError({"error": "已排产的工单不允许变更状态。"})
-            
-        # 如果工单状态改为已排产，则自动拆分工单
-        if new_status == "scheduled":
-            self.split_work_order(instance)
-        
-        #已经排产的工单，只能修改未生产和未报工的任务
-        if instance.status == "scheduled":
-            # 获取当前工单的所有任务
-            tasks = instance.tasks.all()
-            # 获取允许修改的工序ID（未生产和未报工状态）
-            allowed_process_ids = [task.process.id for task in tasks if task.status in ["pending", "unreported"]]
-            
-            if "processes" in request.data:
-                for process_id in request.data["processes"]:
-                    if process_id not in allowed_process_ids:
-                        # 检查该工序ID对应的任务是否存在
-                        existing_task = tasks.filter(process_id=process_id).first()
-                        if existing_task and existing_task.status in ["in_progress", "completed"]:
-                            return Response({"error": "已排产的工单只能修改待处理和未报工的工序。"}, status=status.HTTP_400_BAD_REQUEST)
+        if instance.status == "draft":
+            if instance.is_scheduled:
+                # 已排产的工单只能修改 route 字段
+                if not all(key == "route" for key in request.data.keys()):
+                    raise ValidationError({"error": "已排产的工单只能修改工艺路线。"})
+                # 获取当前工单的所有任务
+                tasks = instance.tasks.all()
+                # 获取允许修改的工序ID（未生产和未报工状态）
+                allowed_process_ids = [task.process.id for task in tasks if task.status in ["pending", "unreported"]]
+                
+                if "processes" in request.data:
+                    for process_id in request.data["processes"]:
+                        if process_id not in allowed_process_ids:
+                            # 检查该工序ID对应的任务是否存在
+                            existing_task = tasks.filter(process_id=process_id).first()
+                            if existing_task and existing_task.status in ["in_progress", "completed"]:
+                                return Response({"error": "已排产的工单只能修改待处理和未报工的工序。"}, status=status.HTTP_400_BAD_REQUEST)
+                
+        elif instance.status == "submitted" and not all(key == "status" for key in request.data.keys()):
+            # 已提交状态下，只能修改 status 字段
+            raise ValidationError({"error": "已提交的工单需要撤销提交后修改。"})
+        elif instance.status == "approved" and not all(key == "status" for key in request.data.keys()):
+            # 已审核状态下，只能修改 status 字段
+            raise ValidationError({"error": "已审核的工单需要反审核后才能修改。"})
         
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.status == "scheduled":
+        if instance.is_scheduled:
             return Response({"error": "已排产的工单不可删除。"}, status=status.HTTP_400_BAD_REQUEST)
         return super().destroy(request, *args, **kwargs)
 
@@ -77,6 +67,18 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
             # 记录创建/更新的任务数量
             created_count = 0
             
+            # 获取当前工单的所有任务
+            existing_tasks = Task.objects.filter(work_order=work_order)
+            
+            # 获取当前工艺路线中的所有 RouteProcess 的 ID
+            current_route_process_ids = [rp.id for rp in route_processes]
+            
+            # 删除不在当前工艺路线中的工序对应的任务
+            for task in existing_tasks:
+                if task.route_process.id not in current_route_process_ids:
+                    task.delete()
+                    logger.debug(f"删除任务: 工单={work_order.id}, 工序={task.process.id}({task.process.name})")
+
             for route_process in route_processes:
                 # 检查是否已存在与该RouteProcess关联的任务
                 existing_task = Task.objects.filter(
@@ -109,7 +111,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         # 对于已排产工单的任务，限制修改权限
-        if instance.work_order.status == "scheduled":
+        if instance.work_order.is_scheduled:
             # 检查是否修改了已完成或进行中的任务
             if instance.status in ["in_progress", "completed"]:
                 raise ValidationError({"error": "已排产工单的进行中或已完成任务不允许修改。"})
@@ -128,8 +130,8 @@ class WorkOrderSplitView(APIView):
             # 调用拆分工单的方法
             WorkOrderViewSet().split_work_order(work_order)
             
-            # 更新工单状态为已排产
-            work_order.status = "scheduled"
+            # 更新工单的已排产状态
+            work_order.is_scheduled = True
             work_order.save()
             
             serializer = WorkOrderSerializer(work_order)

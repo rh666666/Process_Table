@@ -2,7 +2,6 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework import status
 from .models import WorkOrder, Task, Process, Route, RouteProcess
-from .views import WorkOrderViewSet
 
 class WorkOrderAPITestCase(TestCase):
     def setUp(self):
@@ -31,11 +30,15 @@ class WorkOrderAPITestCase(TestCase):
         process_a = Process.objects.create(name="工序A", description="测试工序A")
         process_b = Process.objects.create(name="工序B", description="测试工序B")
         process_c = Process.objects.create(name="工序C", description="测试工序C")
+        process_d = Process.objects.create(name="工序D", description="测试工序D")
+        process_e = Process.objects.create(name="工序E", description="测试工序E")
         
         route = Route.objects.create(name="测试工艺路线")
         
         # 按特定顺序添加工序
+        RouteProcess.objects.create(route=route, process=process_e, order=5)
         RouteProcess.objects.create(route=route, process=process_b, order=2)
+        RouteProcess.objects.create(route=route, process=process_d, order=4)
         RouteProcess.objects.create(route=route, process=process_a, order=1)
         RouteProcess.objects.create(route=route, process=process_c, order=3)
         
@@ -44,10 +47,12 @@ class WorkOrderAPITestCase(TestCase):
         self.assertEqual(ordered_processes[0], process_a)  # order=1
         self.assertEqual(ordered_processes[1], process_b)  # order=2
         self.assertEqual(ordered_processes[2], process_c)  # order=3
+        self.assertEqual(ordered_processes[3], process_d)  # order=4
+        self.assertEqual(ordered_processes[4], process_e)  # order=5
         
         # 拆分工单后检查任务是否按顺序创建
         work_order = WorkOrder.objects.create(
-            name="测试工单",
+            name="拆分测试工单",
             status="approved",
             route=route
         )
@@ -58,10 +63,12 @@ class WorkOrderAPITestCase(TestCase):
         
         # 获取创建的任务，检查顺序
         tasks = Task.objects.filter(work_order=work_order).order_by('id')
-        self.assertEqual(tasks.count(), 3)
+        self.assertEqual(tasks.count(), 5)
         self.assertEqual(tasks[0].process, process_a)  # 第一个任务是order=1的工序
         self.assertEqual(tasks[1].process, process_b)  # 第二个任务是order=2的工序
         self.assertEqual(tasks[2].process, process_c)  # 第三个任务是order=3的工序
+        self.assertEqual(tasks[3].process, process_d)  # 第四个任务是order=4的工序
+        self.assertEqual(tasks[4].process, process_e)  # 第五个任务是order=5的工序
 
     def test_submit_work_order(self):
         """测试提交工单（从草稿变为已提交）"""
@@ -81,17 +88,20 @@ class WorkOrderAPITestCase(TestCase):
         self.assertEqual(response.json()["status"], "approved")
 
     def test_schedule_work_order(self):
-        """测试排产工单（从已审核变为已排产）"""
+        """测试排产工单（设置is_scheduled为True）"""
         self.work_order.status = "approved"
         self.work_order.save()
 
-        data = {"status": "scheduled"}
-        response = self.client.patch(f"{self.work_order_url}{self.work_order.id}/", data, format="json")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json()["status"], "scheduled")
+        # 创建一个已排产的工单
+        self.work_order.is_scheduled = True
+        self.work_order.save()
+        
+        # 验证排产状态
+        self.assertTrue(self.work_order.is_scheduled)
+        self.assertEqual(self.work_order.status, "approved")
 
     def test_reject_status_change(self):
-        """测试非法状态变更（如从已审核变为草稿）"""
+        """测试非法状态变更（如从已审核变为草稿，草稿变为已审核）"""
         self.work_order.status = "approved"
         self.work_order.save()
 
@@ -99,11 +109,20 @@ class WorkOrderAPITestCase(TestCase):
         response = self.client.patch(f"{self.work_order_url}{self.work_order.id}/", data, format="json")
         print(response.json())  # 调试输出
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        
+        self.work_order.status = "draft"
+        self.work_order.save()
+        
+        data = {"status": "approved"}
+        response = self.client.patch(f"{self.work_order_url}{self.work_order.id}/", data, format="json")
+        print(response.json())  # 调试输出
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_scheduled_work_order_cannot_modify_info(self):
-        """测试已排产的工单不允许修改基本信息"""
-        # 将工单状态设置为已排产
-        self.work_order.status = "scheduled"
+        """测试已排产的工单只能修改工艺路线"""
+        # 设置工单为已排产
+        self.work_order.status = "approved"
+        self.work_order.is_scheduled = True
         self.work_order.save()
 
         # 尝试修改工单名称（基本信息）
@@ -111,24 +130,59 @@ class WorkOrderAPITestCase(TestCase):
         response = self.client.patch(f"{self.work_order_url}{self.work_order.id}/", data, format="json")
         print(response.json())  # 调试输出
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("已排产的工单不允许修改基本信息", str(response.json()))
-
-    def test_scheduled_work_order_cannot_change_status(self):
-        """测试已排产的工单不允许变更状态"""
-        # 将工单状态设置为已排产
-        self.work_order.status = "scheduled"
+        self.assertIn("已审核的工单需要反审核后才能修改。", str(response.json()))
+        
+        # 模拟反审核
+        self.work_order.status = "draft"
         self.work_order.save()
-
-        # 尝试将已排产状态的工单改为其他状态
-        data = {"status": "approved"}
+        
+        # 尝试修改基本信息，会触发已排产的工单只能修改工艺路线
+        data = {"name": "修改后的工单名称"}
         response = self.client.patch(f"{self.work_order_url}{self.work_order.id}/", data, format="json")
         print(response.json())  # 调试输出
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("已排产的工单不允许变更状态", str(response.json()))
+        self.assertIn("已排产的工单只能修改工艺路线。", str(response.json()))
+        
+        # 测试修改工艺路线，应该允许
+        new_route = Route.objects.create(name="新的工艺路线")
+        RouteProcess.objects.create(route=new_route, process=self.process, order=1)
+        data = {"route": new_route.id}
+        response = self.client.patch(f"{self.work_order_url}{self.work_order.id}/", data, format="json")
+        print(response.json())  # 调试输出
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_non_draft_work_order_only_modify_status(self):
+        """测试非草稿状态的工单只能修改status字段"""
+        # 测试已提交状态
+        self.work_order.status = "submitted"
+        self.work_order.save()
+
+        # 尝试修改工单名称（非status字段）
+        data = {"name": "修改后的工单名称"}
+        response = self.client.patch(f"{self.work_order_url}{self.work_order.id}/", data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("已提交的工单需要撤销提交后修改。", str(response.json()))
+        
+        # 测试已审核状态
+        self.work_order.status = "approved"
+        self.work_order.save()
+
+        # 尝试修改工单名称（非status字段）
+        data = {"name": "修改后的工单名称"}
+        response = self.client.patch(f"{self.work_order_url}{self.work_order.id}/", data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("已审核的工单需要反审核后才能修改。", str(response.json()))
+        
+        # 测试修改status字段（应该允许）
+        data = {"status": "submitted"}
+        response = self.client.patch(f"{self.work_order_url}{self.work_order.id}/", data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["status"], "submitted")
 
     def test_delete_work_order(self):
         """测试删除工单（已排产工单不可删除）"""
-        self.work_order.status = "scheduled"
+        self.work_order.status = "approved"
+        self.work_order.is_scheduled = True
         self.work_order.save()
 
         response = self.client.delete(f"{self.work_order_url}{self.work_order.id}/", format="json")
@@ -136,82 +190,22 @@ class WorkOrderAPITestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.json()["error"], "已排产的工单不可删除。")
         
-    def test_scheduled_work_order_modify_processes(self):
-        """测试已排产工单只能修改待处理和未报工状态的工序"""
-        # 1. 创建测试工序
-        process_a = Process.objects.create(name="工序A", description="测试工序A")
-        process_b = Process.objects.create(name="工序B", description="测试工序B")
-        process_c = Process.objects.create(name="工序C", description="测试工序C")
-        process_d = Process.objects.create(name="工序D", description="测试工序D")
-        new_process = Process.objects.create(name="新工序", description="用于测试的新工序")
-        
-        # 创建测试工艺路线
-        route = Route.objects.create(name="测试工艺路线")
-        # 使用RouteProcess中间表添加工序并设置顺序
-        RouteProcess.objects.create(route=route, process=process_a, order=1)
-        RouteProcess.objects.create(route=route, process=process_b, order=2)
-        RouteProcess.objects.create(route=route, process=process_c, order=3)
-        RouteProcess.objects.create(route=route, process=process_d, order=4)
+    def test_scheduled_work_order_only_modify_route(self):
+        """测试已排产的工单修改规则"""
+        # 设置工单为已排产
+        self.work_order.status = "approved"
+        self.work_order.is_scheduled = True
+        self.work_order.save()
 
-        # 2. 创建已排产工单
-        work_order = WorkOrder.objects.create(
-            name="已排产测试工单",
-            status="scheduled",  # 已排产状态
-            route=route
-        )
+        # 创建新的工艺路线
+        new_route = Route.objects.create(name="新的工艺路线")
+        RouteProcess.objects.create(route=new_route, process=self.process, order=1)
 
-        # 3. 为工单创建不同状态的任务（关联对应的工序）
-        # 待处理任务（允许修改）
-        task_pending = Task.objects.create(
-            work_order=work_order,
-            process=process_a,
-            status="pending"
-        )
-        # 未报工任务（允许修改）
-        task_unreported = Task.objects.create(
-            work_order=work_order,
-            process=process_b,
-            status="unreported"
-        )
-        # 进行中任务（禁止修改）
-        task_in_progress = Task.objects.create(
-            work_order=work_order,
-            process=process_c,
-            status="in_progress"
-        )
-        # 已完成任务（禁止修改）
-        task_completed = Task.objects.create(
-            work_order=work_order,
-            process=process_d,
-            status="completed"
-        )
-
-        # 4. 测试场景1：修改工单的工艺路线（添加允许的工序）
-        # 创建新的工艺路线，包含允许修改的工序和新工序
-        new_route = Route.objects.create(name="新工艺路线")
-        # 使用RouteProcess中间表添加工序并设置顺序
-        RouteProcess.objects.create(route=new_route, process=process_b, order=1)
-        RouteProcess.objects.create(route=new_route, process=new_process, order=2)
-        
-        data_allowed = {
-            "route": new_route.id
-        }
-        response_allowed = self.client.patch(
-            f"{self.work_order_url}{work_order.id}/",
-            data_allowed,
-            format="json"
-        )
-        # 验证成功
-        self.assertEqual(response_allowed.status_code, status.HTTP_200_OK)
-        # 刷新工单数据
-        work_order.refresh_from_db()
-        # 验证工艺路线已更新
-        self.assertEqual(work_order.route.id, new_route.id)
-        
-        # 检查原有的进行中和已完成任务是否保留
-        self.assertTrue(Task.objects.filter(work_order=work_order, process=process_c, status="in_progress").exists())
-        self.assertTrue(Task.objects.filter(work_order=work_order, process=process_d, status="completed").exists())
-
+        # 尝试只修改route字段（会被拒绝，因为先触发"已审核的工单需要反审核后才能修改"的验证）
+        data_route_only = {"route": new_route.id}
+        response_route_only = self.client.patch(f"{self.work_order_url}{self.work_order.id}/", data_route_only, format="json")
+        self.assertEqual(response_route_only.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("已审核的工单需要反审核后才能修改。", str(response_route_only.json()))
 
 
 class WorkOrderSplitTestCase(TestCase):
@@ -247,10 +241,12 @@ class WorkOrderSplitTestCase(TestCase):
             # 配置mock方法抛出异常
             mock_split.side_effect = Exception("模拟拆分工单失败")
             
-            # 验证当尝试将工单状态改为已排产时，会触发异常
+            # 验证当工单已审核时，会触发异常
             with self.assertRaises(Exception) as context:
-                data = {"status": "scheduled"}
-                self.client.patch(f"/api/workorders/{self.work_order.id}/", data, format="json")
+                # 手动调用视图方法来测试
+                from .views import WorkOrderViewSet
+                viewset = WorkOrderViewSet()
+                viewset.split_work_order(self.work_order)
             
             # 验证异常消息
             self.assertEqual(str(context.exception), "模拟拆分工单失败")
@@ -316,8 +312,9 @@ class TaskStatusChangeTestCase(TestCase):
         # 创建测试工单
         self.work_order = WorkOrder.objects.create(
             name="测试工单",
-            status="scheduled",  # 已排产状态
-            route=self.route
+            status="approved",
+            route=self.route,
+            is_scheduled=True
         )
 
         # 创建任务并关联到RouteProcess

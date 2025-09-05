@@ -31,10 +31,10 @@ class WorkOrder(models.Model):
         ('draft', '草稿'),
         ('submitted', '已提交'),
         ('approved', '已审核'),
-        ('scheduled', '已排产'),
     ]
     name = models.CharField(max_length=100, verbose_name="工单名称")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', verbose_name="状态")
+    is_scheduled = models.BooleanField(default=False, verbose_name="已排产")
     # 一个工单对应一条工艺路线
     route = models.OneToOneField(Route, on_delete=models.CASCADE, verbose_name="工艺路线")
 
