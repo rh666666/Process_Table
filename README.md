@@ -161,7 +161,7 @@ RouteProcess (工艺路线工序关系) <-- 一对多 -- Task (任务)
 2. 构建并启动容器：
 
 ```bash
-docker compose up --build -d
+docker compose up -d
 ```
 
 3. 查看容器运行状态：
@@ -216,7 +216,7 @@ python manage.py test
 
 1. 创建新的模型后，运行以下命令生成迁移文件并应用：
 ```bash
-python manage.py makemigrations
+python manage.py makemigrations app
 python manage.py migrate
 ```
 
