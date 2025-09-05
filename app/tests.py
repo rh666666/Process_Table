@@ -24,6 +24,31 @@ class WorkOrderAPITestCase(TestCase):
             route=self.route
         )
         
+    def test_submitted_to_draft_status_change(self):
+        """测试已提交状态的工单可以转换为草稿状态"""
+        # 创建新的工艺路线，因为WorkOrder的route是OneToOneField
+        test_process = Process.objects.create(name="测试工序2", description="测试工序2描述")
+        test_route = Route.objects.create(name="测试工艺路线2")
+        RouteProcess.objects.create(route=test_route, process=test_process, order=1)
+        
+        # 先将工单状态设置为已提交
+        work_order = WorkOrder.objects.create(
+            name="测试工单",
+            status="submitted",
+            route=test_route
+        )
+        
+        # 发送PATCH请求将状态从submitted改为draft
+        url = f"{self.work_order_url}{work_order.id}/"
+        response = self.client.patch(url, {'status': 'draft'}, format='json')
+        
+        # 验证请求成功
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # 验证状态已更新为draft
+        work_order.refresh_from_db()
+        self.assertEqual(work_order.status, 'draft')
+    
     def test_route_process_order(self):
         """测试工艺路线中的工序顺序功能"""
         # 创建测试工序和工艺路线
@@ -124,6 +149,16 @@ class WorkOrderAPITestCase(TestCase):
         self.work_order.status = "approved"
         self.work_order.is_scheduled = True
         self.work_order.save()
+        
+        # 手动创建任务，因为直接设置状态不会触发split_work_order方法
+        from .models import Task, RouteProcess
+        route_process = RouteProcess.objects.get(route=self.route, process=self.process)
+        Task.objects.create(
+            work_order=self.work_order,
+            process=self.process,
+            status="pending",
+            route_process=route_process
+        )
 
         # 尝试修改工单名称（基本信息）
         data = {"name": "修改后的工单名称"}
@@ -132,7 +167,7 @@ class WorkOrderAPITestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("已审核的工单需要反审核后才能修改。", str(response.json()))
         
-        # 模拟反审核
+        # 模拟反审核（注意：已排产的工单不可反排产，所以is_scheduled保持为True）
         self.work_order.status = "draft"
         self.work_order.save()
         
@@ -143,13 +178,29 @@ class WorkOrderAPITestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("已排产的工单只能修改工艺路线。", str(response.json()))
         
-        # 测试修改工艺路线，应该允许
-        new_route = Route.objects.create(name="新的工艺路线")
-        RouteProcess.objects.create(route=new_route, process=self.process, order=1)
-        data = {"route": new_route.id}
-        response = self.client.patch(f"{self.work_order_url}{self.work_order.id}/", data, format="json")
+        # 尝试通过工艺路线 API 修改工单绑定的工艺路线基本信息
+        route_url = f"/api/routes/{self.route.id}/"
+        data = {"name": "修改后的工艺路线名称"}
+        response = self.client.patch(route_url, data, format="json")
         print(response.json())  # 调试输出
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["name"], "修改后的工艺路线名称")
+        
+        # 修改工艺路线
+        data = {"processes": [self.process.id]}
+        response = self.client.patch(route_url, data, format="json")
+        print(response.json())  # 调试输出
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["processes"][0]["process"]["id"], self.process.id)
+        # 检查工单绑定的工艺路线是否更新
+        self.work_order.refresh_from_db()
+        self.assertEqual(self.work_order.route.name, "修改后的工艺路线名称")
+        # 检查任务是否按新的工艺路线创建
+        tasks = Task.objects.filter(work_order=self.work_order).order_by('id')
+        self.assertEqual(tasks.count(), 1)
+        self.assertEqual(tasks[0].process, self.process)  # 任务绑定的工序应该是修改后的工序
+        # 检查任务的关联工艺路线工序关系是否更新
+        self.assertEqual(tasks[0].route_process.process, self.process)
 
     def test_non_draft_work_order_only_modify_status(self):
         """测试非草稿状态的工单只能修改status字段"""

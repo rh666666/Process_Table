@@ -83,7 +83,7 @@ class WorkOrderSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = WorkOrder
-        fields = ['id', 'name', 'status', 'route', 'task_count']
+        fields = ['id', 'name', 'status', 'route', 'task_count', 'is_scheduled']
         read_only_fields = ['task_count']
 
 class TaskSerializer(serializers.ModelSerializer):

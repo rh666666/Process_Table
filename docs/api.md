@@ -377,7 +377,7 @@
 
 ### 6.4 更新工单
 
-**请求方法**: PUT/PATCH
+**请求方法**: PUT/PATCH （强烈建议使用 PATCH 修改工单）
 **请求URL**: `/api/workorders/<id>/`
 
 **状态转换规则**: 

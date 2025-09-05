@@ -1,3 +1,4 @@
+from django.http import response
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -27,8 +28,8 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
         
         if instance.status == "draft":
             if instance.is_scheduled:
-                # 已排产的工单只能修改 route 字段
-                if not all(key == "route" for key in request.data.keys()):
+                # 已排产的工单只能修改 status 字段和绑定的工艺路线内容
+                if not all(key == "status" for key in request.data.keys()):
                     raise ValidationError({"error": "已排产的工单只能修改工艺路线。"})
                 # 获取当前工单的所有任务
                 tasks = instance.tasks.all()
@@ -46,9 +47,18 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
         elif instance.status == "submitted" and not all(key == "status" for key in request.data.keys()):
             # 已提交状态下，只能修改 status 字段
             raise ValidationError({"error": "已提交的工单需要撤销提交后修改。"})
-        elif instance.status == "approved" and not all(key == "status" for key in request.data.keys()):
-            # 已审核状态下，只能修改 status 字段
+        elif instance.status == "approved" and not all(key == "status" or key == "is_scheduled" for key in request.data.keys()):
+            # 已审核状态下，只能修改 status 字段和 is_scheduled 字段
             raise ValidationError({"error": "已审核的工单需要反审核后才能修改。"})
+        elif instance.status != "approved" and instance.is_scheduled == False and request.data.get("is_scheduled") == True:
+            raise ValidationError({"error": "未审核的工单不可排产。"})
+        elif instance.is_scheduled == True and request.data.get("is_scheduled") == False:
+            raise ValidationError({"error": "已排产的工单不可反排产。"})
+        
+        if instance.status == "approved" and request.data.get("is_scheduled") == True:
+            self.split_work_order(instance)
+        elif instance.is_scheduled == True and request.data.get("status") == "approved":
+            self.split_work_order(instance)
         
         return super().update(request, *args, **kwargs)
 
