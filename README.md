@@ -160,10 +160,7 @@ RouteProcess (工艺路线工序关系) <-- 一对多 -- Task (任务)
 
 2. 构建并启动容器：
 
-> 尽管 Dockerfile 中赋予了 start.sh 执行权限，但实际运行时扔可能出现无权限的情况，可以在运行该命令之前先给 start.sh 赋权
-
 ```bash
-chmod +x start.sh
 docker compose up --build -d
 ```
 

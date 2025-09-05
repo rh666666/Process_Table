@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# 文件已改为 unix 格式
 # 只有当前目录不存在db.sqlite3时才会执行以下操作，即初始化
 if [ ! -f "db.sqlite3" ]; then
     echo "初始化数据库……"

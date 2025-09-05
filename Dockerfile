@@ -35,8 +35,5 @@ COPY . .
 # 暴露端口
 EXPOSE 8000
 
-# 启动脚本
-RUN chmod +x start.sh
-
 # 使用uvicorn作为ASGI服务器运行应用
-CMD ["./start.sh"]
+CMD ["bash", "start.sh"]
