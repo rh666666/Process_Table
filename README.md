@@ -21,7 +21,7 @@
 
 ### 3. 工单管理 (WorkOrder)
 - 创建、查询、更新和删除工单
-- 工单状态流转管理：草稿(draft) → 已提交(submitted) → 已审核(approved) → 已排产(scheduled)
+- 工单状态流转管理：草稿(draft) → 已提交(submitted) → 已审核(approved) | 已排产(scheduled)
 - 工单与工艺路线一对一关联
 - 已排产工单的工艺路线修改限制
 
